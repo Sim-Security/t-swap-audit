@@ -185,6 +185,7 @@ contract TSwapPool is ERC20 {
     /// @param minWethToWithdraw The minimum amount of WETH the user wants to withdraw
     /// @param minPoolTokensToWithdraw The minimum amount of pool tokens the user wants to withdraw
     /// @param deadline The deadline for the transaction to be completed by
+    // e Looks pretty good
     function withdraw(
         uint256 liquidityTokensToBurn,
         uint256 minWethToWithdraw,
@@ -221,6 +222,7 @@ contract TSwapPool is ERC20 {
                               GET PRICING
     //////////////////////////////////////////////////////////////*/
 
+    // e looks good
     function getOutputAmountBasedOnInput(
         uint256 inputAmount,
         uint256 inputReserves,
@@ -264,17 +266,21 @@ contract TSwapPool is ERC20 {
         returns (uint256 inputAmount)
     {
         // @audit-info -using magic numbers without explanation. Create constants
+        // @audit-high - should be using 1_000, not 10_000!
+        // IMPACT: High --> users are charged way too much!
+        // LIKELIHOOD: High --> swapExactOuput is one of the main swapping functions!!
         return ((inputReserves * outputAmount) * 10000) / ((outputReserves - outputAmount) * 997);
     }
 
     // @audit-info - Instead of marking a function as public, consider marking it as external if it is not used
     // internally.
+    // @audit-info - where is the natspec?
     function swapExactInput(
-        IERC20 inputToken,
-        uint256 inputAmount,
-        IERC20 outputToken,
-        uint256 minOutputAmount,
-        uint64 deadline
+        IERC20 inputToken, // e input token to swap / sell ie: DAI
+        uint256 inputAmount, // e amount of input token to sell ie: DAI
+        IERC20 outputToken, // e output token to receive ie: WETH exammple : 7 dAI --> 1 WETH
+        uint256 minOutputAmount, // e minimum amount of output token to receive ie: WETH
+        uint64 deadline // e deadline for when the transaction should expire
     )
         public
         revertIfZero(inputAmount)
@@ -323,6 +329,13 @@ contract TSwapPool is ERC20 {
 
         inputAmount = getInputAmountBasedOnOutput(outputAmount, inputReserves, outputReserves);
 
+        // No slippage protection!
+        // 10 output WETH, and my input is DAI
+        // send the transaction, but suddenly the pool gets a massive transaction that changes the price!
+        // now 10 output WETH --> 10,000,000,000 input DAI     
+        // @audit need a max input amount   
+        // MEV attack
+
         _swap(inputToken, inputAmount, outputToken, outputAmount);
     }
 
@@ -332,6 +345,11 @@ contract TSwapPool is ERC20 {
      * @return wethAmount amount of WETH received by caller
      */
     function sellPoolTokens(uint256 poolTokenAmount) external returns (uint256 wethAmount) {
+        // inputToken --> poolToken
+        // outputToken --> WETH
+        // outputAmount --> wethAmount?? Should be wethAmount instead of poolTokenAmount!!
+        // @audit - this is wrong inputs! 
+        // could be wrong vars or wrong function call
         return swapExactOutput(i_poolToken, i_wethToken, poolTokenAmount, uint64(block.timestamp));
     }
 
@@ -378,6 +396,7 @@ contract TSwapPool is ERC20 {
     }
 
     /// @notice a more verbose way of getting the total supply of liquidity tokens
+    // @audit-info this should be external
     function totalLiquidityTokenSupply() public view returns (uint256) {
         return totalSupply();
     }
